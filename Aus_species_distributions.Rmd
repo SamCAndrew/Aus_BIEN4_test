@@ -1,0 +1,252 @@
+---
+title: "Aus_species_distributions"
+author: "Samuel Andrew"
+date: "4 April 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r run the test models, echo=TRUE, eval=FALSE}
+#== 1. packages
+library(cmsdm)
+library(BIENWorkflow)
+library(trinaryMaps)
+## Make the custom background files automatically copy in sdmdirectories
+myInputDir="D:/Documents_2/SD_work/Aus_BIEN4_test"
+myModelingDir="D:/Documents_2/SD_work/Aus_BIEN4_test/BIEN_v1"
+if(!file.exists(myModelingDir)) dir.create(myModelingDir)
+
+#== 2. Create directories
+runName='Aus_demo_180404'
+
+# system specific
+baseDir=paste0(myModelingDir,'/', runName,'_inputs')
+mySpeciesDir=paste0(myInputDir,'/Pres_Species')
+myCustomBackgroundDir=paste0(myInputDir,'/Pres_Family')
+myCustomBackgroundTable= system.file("extdata/OFGS_Lookup_Table.csv", package='BIENWorkflow')
+myEnvDir=paste0(myInputDir,'/Climate_data_final')
+# each of these should be stored as a single stack
+myOtherEnvDir=NULL 
+#myOtherEnvDir=paste0(myInputDir,'/Future_Env') 
+
+# for using offsets; not yet done in BIEN
+myRangePolyDir=NULL
+mySamplingModelDir=NULL
+mySamplingDataDir=NULL
+myOffsetDirs=NULL
+
+# system independent
+otherDirs=list(
+  rangePolyDir=NULL,
+  rdistDir=paste0(baseDir,'/rDists'),
+  domains=paste0(baseDir,'/domains'))
+sortDirNames=c('Points','Bounding_Box','Convex_Hull','SDM','SDM10_20')
+offsetDataDirNames=c('Expert_Maps')
+samplingDataDirNames=NULL
+
+allBaseDirs=sdmDirectories(baseDir,
+                           warn=FALSE,
+                           mySpeciesDir=mySpeciesDir,
+                           myEnvDir=myEnvDir,
+                           myOffsetDirs=myOffsetDirs,
+                           mySamplingDataDir=mySamplingDataDir,
+                           mySamplingModelDir=mySamplingModelDir,
+                           myOtherEnvDir=myOtherEnvDir,
+                           myCustomBackgroundDir=myCustomBackgroundDir,
+                           myCustomBackgroundTable=myCustomBackgroundTable,
+                           offsetDataDirNames=offsetDataDirNames,
+                           samplingDataDirNames=samplingDataDirNames,
+                           overwrite=FALSE,
+                           sortDirNames=sortDirNames,
+                           otherDirs=otherDirs)
+
+
+#== 3. Prep environmental layers
+
+source(paste0(myInputDir,'/Scripts/2BIENWorklow1_0_test_Make_Data.r'))
+save(allBaseDirs,file=paste0(baseDir,'/allBaseDirs.rdata'))
+
+
+#== 4. Sort species
+### 4.a sort species by algorithm
+
+sortDone=checkSortDone(allBaseDirs, deleteSorted=FALSE)
+pointsProj=CRS('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
+sortSpeciesBulk(allBaseDirs,pointsProj,myprj=myprj,doThin=TRUE,thinCutoff=20,verbose=TRUE,overwrite=FALSE,doClean=TRUE)
+
+### 4.b specify which species to run
+speciesList=list.files(file.path(allBaseDirs$speciesDir,'SDM'),full.names=T)
+done=checkSDMDone(allBaseDirs,speciesList) # check whether any already done
+speciesList=done$notRun
+str(done)
+
+#== 5. Model settings
+
+modelSettings=list()
+modelSettings$samplingSettings=c('noBias','targetBG') 
+modelSettings$expertSettings=list(prob=1e-6,rate=0,skew=1e-6,shift=0)
+modelSettings$predictorSettings=NULL
+modelSettings$regularizationSettings=NULL
+modelSettings$priorSettings=NULL
+modelSettings$backgroundSettings=NULL
+modelSettings$algorithmSettings=c('maxnet')
+modelSettings$formulaMaker="sdmGenericFormulas"
+modelSettings$maxTime=500 # time for an individual call to glmnet()
+modelSettings$samplingModel='none'
+
+source(system.file("extdata/Demo_Workflow/Common_BIENWorkflow_Settings_v1.r", package='BIENWorkflow'))
+if(Sys.info()['user']=='ctg') {
+	source( '~/Dropbox/Projects/BIEN/BIENWorkflow/inst/extdata/Demo_Workflow/Common_BIENWorkflow_Settings_v1.r')
+}
+
+toDo$maxBGFit=3e4
+toDo$otherEnvProjections=TRUE
+toDo$plotOtherEnvPred=TRUE
+toDo$makeBiasedBackground=TRUE
+toDo$openFig=TRUE
+toDo$whichFutures='all' #c('he') # put anything here you could grep from the scenario name
+toDo$whichFuturesToPlot=c('he')
+toDo$plotBinaryShp=F
+toSave$shapeFile=F
+toDo$maxTrimDomainTime=60
+# this could give you trouble; you might locate it with Sys.which('gdal_polygonize.py') or set toSave$shapefile=F; toDo$$plotBinaryShp=F
+toDo$pypath="/Library/Frameworks/GDAL.framework/Versions/1.11/Programs/gdal_polygonize.py"
+#on PC you probably should set toDo$evalFork=F
+toDo$evalFork=F
+
+### 6. Run Models
+
+j=1; (speciesCSV=speciesList[j])
+
+for (j in 1:length(speciesList)){
+  print(j)
+  out=sdmBIEN(speciesCSV=speciesList[j],
+              allBaseDirs,
+              modelSettings=modelSettings,
+              toDo=toDo,
+              toSave=toSave,
+              toOverwrite=toOverwrite)
+  gc()
+}
+
+
+```
+
+
+```{r make presence files}
+library(tidyverse)
+
+test_species <- read.csv("../Extra_SD_Data/sam_occurrences_171113.csv")
+FamilyList <- read.csv("../Extra_SD_Data/APC_taxonlookup_Full_180201.csv")
+i<- match(test_species$taxon, FamilyList$APC_name)
+test_species$family <- FamilyList$family[i]
+
+species <- as.character(unique(test_species$taxon))
+familys <- as.character(unique(test_species$family))
+
+## get species files 
+for (i in 1:length(species)){
+  SP_1 <- test_species[test_species$taxon == species[i],]
+  SP_2 <- SP_1[,2:3]
+  name<- species[i] %>% str_replace(" ", "_") %>% paste0("Pres_Species/", .,".csv")
+  write_csv(SP_2, c(name))
+}
+
+## Get Family files
+for (i in 1:length(familys)){
+  SP_1 <- test_species[test_species$family == familys[i],]
+  SP_2 <- SP_1[,2:3]
+  name<- familys[i] %>% str_replace(" ", "_") %>% paste0("Pres_Family/", .,".csv")
+  write_csv(SP_2, c(name))
+}
+
+rm(species, familys, SP_1, SP_2, name, i)
+rm(test_species, FamilyList)
+```
+
+```{r prep climate data, echo=TRUE, eval=FALSE}
+library(raster) 
+library(rgdal)
+library(stringr)
+library(RCurl)
+ 
+#Albers equal area projection
+Albers<-"+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+## MAsks
+No_ocean <- raster("../Extra_SD_Data/Aus_masks/No_Ocean_50km.asc")
+ausMaskE <- raster("../Extra_SD_Data/Aus_masks/Mask_Equal_50km.asc")
+
+#make 100km equal area raster Albers equal area:
+km100 <- raster(nrows=49, ncols=56, 
+                xmn=-2904860, xmx=2695140,ymn=-5334205, ymx=-434205,
+                crs =paste(Albers))
+km50 <- raster(nrows=98, ncols=112, 
+                xmn=-2904860, xmx=2695140,ymn=-5334205, ymx=-434205,
+                crs =paste(Albers))
+km1<-raster(nrows=4900, ncols=5600, 
+            xmn=-2904860, xmx=2695140,ymn=-5334205, ymx=-434205,
+            crs =paste(Albers))
+
+#### Look at BEIN climate data
+BIENclimate <- stack("../BIEN4_NCEAS_Test/Env_1_21_18/bien_v1_env.grd")
+BIENclimate
+BIENclimate$bio1
+plot(BIENclimate$bedrockDepth)
+
+
+#### Aridity
+library(raster)
+#### Crop Aridity Layer
+aridity <- raster("../Extra_SD_Data/Global Aridity - Annual/AI_annual/ai_yr/w001001.adf")
+ext<-extent(c(112,154.5,-44.475,-9.975))
+aridity <- crop(aridity, ext)
+plot(aridity)
+writeRaster(aridity, "../Extra_SD_Data/Global Aridity - Annual/Aus_aridity.asc", crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0", overwrite=TRUE)
+
+##Convert to equal areas
+aridity <- raster("../Extra_SD_Data/Global Aridity - Annual/Aus_aridity.asc", crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+aridityAlbers <- projectRaster(aridity,km1,method='bilinear')
+writeRaster(aridityAlbers, "../Extra_SD_Data/Global Aridity - Annual/Aus_aridity_Equal_1km.asc", crs = "+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", overwrite=TRUE)
+
+###Problem starts here
+aridityAlbers<- raster("../Extra_SD_Data/Global Aridity - Annual/Aus_aridity_Equal_1km.asc", crs = "+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+aridity10 <- aggregate(aridityAlbers,10,'mean')
+ext1 <- extent(c(-1887423, 2122577, -4868165, -1008165))
+aridity101 <- crop(aridity10, ext1)
+plot(aridity101)
+writeRaster(aridity10, "Climate_data/Aus_aridity_Equal_10km.asc", crs = "+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", overwrite=TRUE)
+
+### Loop for climate data
+layers <- list.files('Data/WorldClime/',full.names=T)
+layers2 <- c('bio1','bio2','bio12','bio15','bio20')
+for (i in 1:length(layers)){
+  Bio_layer<- raster(layers[i])
+  Bio_layer1 <- projectRaster(Bio_layer,km1,method='bilinear')
+  Bio_layer2 <- aggregate(Bio_layer1,10,'mean')
+  plot(Bio_layer2)
+  writeRaster(Bio_layer2, paste0("Climate_data/Aus_", layers2[i], "_Equal_10km.asc"), overwrite=TRUE)
+} 
+
+
+```
+
+```{r Set Climate data, echo=TRUE, eval=FALSE}
+
+# prep environmental layers (some of these are made below)
+# get climate
+cl.f=list.files('Climate_data/',full.names=T)
+cl=stack(cl.f)
+myprj = "+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+projection(cl)=myprj
+names(cl)=c('aridity','bio1','bio12','bio15','bio2','bio20','bedrockDepth','bulkDensity1_4','clay1_4','ph1_4','silt1_4')
+writeRaster(cl,file='Climate_data_final/Aus_bien_v1_env.grd',overwrite=T)
+ 
+
+```
+
+
+```{r Test stuff, include=FALSE}
+
+```
+
