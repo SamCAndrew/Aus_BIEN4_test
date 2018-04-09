@@ -150,7 +150,7 @@ familys <- as.character(unique(test_species$family))
 for (i in 1:length(species)){
   SP_1 <- test_species[test_species$taxon == species[i],]
   SP_2 <- SP_1[,2:3]
-  name<- species[i] %>% str_replace(" ", "_") %>% paste0("Pres_Species/", .,".csv")
+  name<- species[i] %>% str_replace_all(" ", "_") %>% paste0("Pres_Species/", .,".csv")
   write_csv(SP_2, c(name))
 }
 
