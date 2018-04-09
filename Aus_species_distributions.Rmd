@@ -24,7 +24,7 @@ runName='Aus_demo_180404'
 baseDir=paste0(myModelingDir,'/', runName,'_inputs')
 mySpeciesDir=paste0(myInputDir,'/Pres_Species')
 myCustomBackgroundDir=paste0(myInputDir,'/Pres_Family')
-myCustomBackgroundTable= system.file("extdata/OFGS_Lookup_Table.csv", package='BIENWorkflow')
+myCustomBackgroundTable= paste0(myInputDir,'/Scripts/Aus_lookup_Table.csv')
 myEnvDir=paste0(myInputDir,'/Climate_data_final')
 # each of these should be stored as a single stack
 myOtherEnvDir=NULL 
@@ -188,7 +188,7 @@ km1<-raster(nrows=4900, ncols=5600,
             xmn=-2904860, xmx=2695140,ymn=-5334205, ymx=-434205,
             crs =paste(Albers))
 
-#### Look at BEIN climate data
+#### Look at BIEN climate data
 BIENclimate <- stack("../BIEN4_NCEAS_Test/Env_1_21_18/bien_v1_env.grd")
 BIENclimate
 BIENclimate$bio1
@@ -245,8 +245,92 @@ writeRaster(cl,file='Climate_data_final/Aus_bien_v1_env.grd',overwrite=T)
 
 ```
 
+```{r Lookup table and all Pres, echo=TRUE, eval=FALSE}
+#rm(list = ls())
+library(tidyverse)
+### List of Native Australian species
+FamilyList <- read.csv("../Extra_SD_Data/APC_taxonlookup_Full_180201.csv")
+All_species_list <- read.csv("../Extra_SD_Data/All_species_IDs_SCA_180215.csv")
+All_species_list <- All_species_list[All_species_list$group == "native",]
+Native_Species <- FamilyList[FamilyList$APC_name %in% All_species_list$canonicalName,]
+rm(FamilyList, All_species_list)
+
+#### Make the Lookup Table
+Lookup_Table <- as.data.frame(Native_Species$order)
+colnames(Lookup_Table) <- "order"
+Lookup_Table$family <- Native_Species$family
+Lookup_Table$genus <- Native_Species$genus
+Lookup_Table$species <- Native_Species$APC_name %>% str_replace_all(" ", "_")
+load("../Extra_SD_Data/Native_data_wide_1_180305.rds")
+Growth_Form <- var_data_1[[1]]
+i<- match(Native_Species$APC_name, Growth_Form$species_name)
+Native_Species$growth_form <-Growth_Form$plant_growth_form[i]
+Lookup_Table$growth_form <- Native_Species$growth_form
+rm(var_data_1, i, Growth_Form)
+
+### Get occurance data
+Full_occur <- read_csv("../Extra_SD_Data/ALA_Native_With_Gridcell_SCA_180215.csv")
+Full_occur <- Full_occur[Full_occur$scientificName %in% Native_Species$APC_name, ]
+list <- c(unique(Full_occur$scientificName))
+### Remove Species with no Occurance data
+X <- Native_Species[Native_Species$APC_name %in% list,]
+Lookup_Table <- Lookup_Table[Lookup_Table$species %in% X$new_name,]
+rm(X)
+Full_occur <- Full_occur[, c("longitude", "latitude", "family", "genus", "scientificName", "rank", "Grid_cell")]
+gc()
+write.csv(Lookup_Table,file='Scripts/Aus_lookup_Table.csv',row.names=F)
+
+#### adapted From prep_target_groups_genus_v1.R
+library(dplyr)
+library(data.table)
+library(doParallel)
+genus= unique(Full_occur$genus) ## lookup table 2255 levels
+genus_family = unique(Full_occur[,c('family','genus')])
+family= unique(Full_occur$family) ## lookup table 307 levels
+
+#All Species
+Full_occur$species=gsub(' ','_',Full_occur$scientificName)
+species= unique(Full_occur$species)
+X <- Lookup_Table[Lookup_Table$species %in% species,]
+rm(X)
+
+#=============================================================================#write out family files
+outdir.family="D:/Documents_2/SD_work/Aus_BIEN4_test/All_occurance/Aus_family_pres/"
+if(!file.exists(outdir.family)) dir.create(outdir.family)
+
+foreach(ii = 1:length(family)) %dopar% {
+  out=subset(Full_occur,family==family[ii])[, c('longitude','latitude')]
+  write.csv(out,file=paste0(outdir.family,family[ii],'.csv'),row.names=FALSE)
+}
+
+#=============================================================================#write out genus files
+outdir.genus='D:/Documents_2/SD_work/Aus_BIEN4_test/All_occurance/Aus_Genus_Pres/'
+if(!file.exists(outdir.genus)) dir.create(outdir.genus)
+
+foreach(ii = 1:nrow(genus_family)) %dopar% {
+  out=subset(Full_occur,family==genus_family[ii,1] & genus==genus_family[ii,2] )[,c('longitude','latitude')]
+  write.csv(out,file=paste0(outdir.genus,paste0(genus_family[ii,], collapse='_'),'.csv'),row.names=FALSE)
+}
+
+#=============================================================================# write out species files
+outdir.species="D:/Documents_2/SD_work/Aus_BIEN4_test/All_occurance/Aus_Species_pres/"
+if(!file.exists(outdir.species)) dir.create(outdir.species)
+
+foreach(ii = 1:length(species)) %dopar% {
+  out=subset(Full_occur,species==species[ii])[, c('longitude','latitude')]
+  write.csv(out,file=paste0(outdir.species,species[ii],'.csv'),row.names=FALSE)
+}
+
+#NEED TO, check the size number of samples per family and genus to see if there are any that will lead to trouble with target groups
+
+```
 
 ```{r Test stuff, include=FALSE}
-
+### are Aus Species in OFGS list?
+FamilyList <- read.csv("../Extra_SD_Data/APC_taxonlookup_Full_180201.csv")
+FamilyList$new_name <- FamilyList$APC_name %>% str_replace_all(" ", "_")
+OFGS_list <- read.csv("../Extra_SD_Data/OFGS_Lookup_Table.csv")
+overlap <- OFGS_list[OFGS_list$species %in% FamilyList$new_name,] # only about 800
+rm(FamilyList, OFGS_list, overlap)
 ```
 
