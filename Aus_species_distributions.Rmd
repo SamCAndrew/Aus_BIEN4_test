@@ -8,6 +8,7 @@ editor_options:
 ---
 
 ```{r run the test models, echo=TRUE, eval=FALSE}
+#rm(list= ls())
 #== 1. packages
 library(cmsdm)
 library(BIENWorkflow)
