@@ -28,8 +28,8 @@ myCustomBackgroundDir=paste0(myInputDir,'/Pres_Family')
 myCustomBackgroundTable= paste0(myInputDir,'/Scripts/Aus_lookup_Table.csv')
 myEnvDir=paste0(myInputDir,'/Climate_data_final')
 # each of these should be stored as a single stack
-myOtherEnvDir=NULL 
-#myOtherEnvDir=paste0(myInputDir,'/Future_Env') 
+#myOtherEnvDir=NULL 
+myOtherEnvDir=paste0(myInputDir,'/Future_Env') 
 
 # for using offsets; not yet done in BIEN
 myRangePolyDir=NULL
@@ -106,7 +106,7 @@ toDo$otherEnvProjections=TRUE
 toDo$plotOtherEnvPred=TRUE
 toDo$makeBiasedBackground=TRUE
 toDo$openFig=TRUE
-toDo$whichFutures='all' #c('he') # put anything here you could grep from the scenario name
+toDo$whichFutures=NULL #c('he') # put anything here you could grep from the scenario name
 toDo$whichFuturesToPlot=c('he')
 toDo$plotBinaryShp=F
 toSave$shapeFile=F
@@ -118,9 +118,9 @@ toDo$evalFork=F
 
 ### 6. Run Models
 
-j=1; (speciesCSV=speciesList[j])
+j=105; (speciesCSV=speciesList[j])
 
-for (j in 1:length(speciesList)){
+for (j in 105:length(speciesList)){
   print(j)
   out=sdmBIEN(speciesCSV=speciesList[j],
               allBaseDirs,
