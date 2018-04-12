@@ -9,7 +9,7 @@
 
 # !!!NOTE: this may change from workflow to workflow (maybe different file type)
 #myprj = "+proj=laea +lat_0=15 +lon_0=-80 +x_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs +towgs=0,0,0" for New world
-myprj<-"+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+myprj<-CRS("+init=epsg:3577")
 
 #env.f=paste0(allBaseDirs$envDir,'/bio_sp8.tif')
 env.f=paste0(allBaseDirs$envDir,'/Aus_bien_v1_env.grd')

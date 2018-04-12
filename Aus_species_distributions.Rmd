@@ -13,13 +13,16 @@ editor_options:
 library(cmsdm)
 library(BIENWorkflow)
 library(trinaryMaps)
+library(raster)
+library(sp)
+
 ## Make the custom background files automatically copy in sdmdirectories
 myInputDir="D:/Documents_2/SD_work/Aus_BIEN4_test"
 myModelingDir="D:/Documents_2/SD_work/Aus_BIEN4_test/BIEN_v1"
 if(!file.exists(myModelingDir)) dir.create(myModelingDir)
 
 #== 2. Create directories
-runName='Aus_demo_180404'
+runName='Aus_demo_180412'
 
 # system specific
 baseDir=paste0(myModelingDir,'/', runName,'_inputs')
@@ -73,7 +76,7 @@ save(allBaseDirs,file=paste0(baseDir,'/allBaseDirs.rdata'))
 ### 4.a sort species by algorithm
 
 sortDone=checkSortDone(allBaseDirs, deleteSorted=FALSE)
-pointsProj=CRS('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
+pointsProj=CRS("+init=epsg:4326")
 sortSpeciesBulk(allBaseDirs,pointsProj,myprj=myprj,doThin=TRUE,thinCutoff=20,verbose=TRUE,overwrite=FALSE,doClean=TRUE)
 
 ### 4.b specify which species to run
@@ -102,8 +105,8 @@ if(Sys.info()['user']=='ctg') {
 }
 
 toDo$maxBGFit=3e4
-toDo$otherEnvProjections=TRUE
-toDo$plotOtherEnvPred=TRUE
+toDo$otherEnvProjections=FALSE
+toDo$plotOtherEnvPred=FALSE
 toDo$makeBiasedBackground=TRUE
 toDo$openFig=TRUE
 toDo$whichFutures=NULL #c('he') # put anything here you could grep from the scenario name
@@ -118,9 +121,9 @@ toDo$evalFork=F
 
 ### 6. Run Models
 
-j=105; (speciesCSV=speciesList[j])
+j=1; (speciesCSV=speciesList[j])
 
-for (j in 105:length(speciesList)){
+for (j in 1:length(speciesList)){
   print(j)
   out=sdmBIEN(speciesCSV=speciesList[j],
               allBaseDirs,
@@ -136,12 +139,12 @@ for (j in 105:length(speciesList)){
 
 
 ```{r make presence files}
-library(tidyverse)
+library(tidyverse) 
 
 test_species <- read.csv("../Extra_SD_Data/sam_occurrences_171113.csv")
 FamilyList <- read.csv("../Extra_SD_Data/APC_taxonlookup_Full_180201.csv")
 i<- match(test_species$taxon, FamilyList$APC_name)
-test_species$family <- FamilyList$family[i]
+test_species$family <- FamilyList$family[i] 
 
 species <- as.character(unique(test_species$taxon))
 familys <- as.character(unique(test_species$family))
@@ -162,7 +165,7 @@ for (i in 1:length(familys)){
   write_csv(SP_2, c(name))
 }
 
-rm(species, familys, SP_1, SP_2, name, i)
+rm(species, familys, SP_1, SP_2, name, i) 
 rm(test_species, FamilyList)
 ```
 
@@ -171,29 +174,27 @@ library(raster)
 library(rgdal)
 library(stringr)
 library(RCurl)
+library(sp)
  
 #Albers equal area projection
-Albers<-"+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+Albers<-CRS("+init=epsg:3577")
 ## MAsks
-No_ocean <- raster("../Extra_SD_Data/Aus_masks/No_Ocean_50km.asc")
-ausMaskE <- raster("../Extra_SD_Data/Aus_masks/Mask_Equal_50km.asc")
+No_ocean <- raster("../Extra_SD_Data/Aus_masks/No_Ocean_50km.tif")
+ausMaskE <- raster("../Extra_SD_Data/Aus_masks/Mask_Equal_50km.tif")
 
 #make 100km equal area raster Albers equal area:
-km100 <- raster(nrows=49, ncols=56, 
+km50 <- raster(res = 50000, 
                 xmn=-2904860, xmx=2695140,ymn=-5334205, ymx=-434205,
-                crs =paste(Albers))
-km50 <- raster(nrows=98, ncols=112, 
-                xmn=-2904860, xmx=2695140,ymn=-5334205, ymx=-434205,
-                crs =paste(Albers))
-km1<-raster(nrows=4900, ncols=5600, 
+                crs ="+init=epsg:3577")
+km1<-raster(res = 1000, 
             xmn=-2904860, xmx=2695140,ymn=-5334205, ymx=-434205,
-            crs =paste(Albers))
+            crs ="+init=epsg:3577")
 
 #### Look at BIEN climate data
 BIENclimate <- stack("../BIEN4_NCEAS_Test/Env_1_21_18/bien_v1_env.grd")
 BIENclimate
 BIENclimate$bio1
-plot(BIENclimate$bedrockDepth)
+plot(BIENclimate$bio20)
 
 
 #### Aridity
@@ -203,31 +204,40 @@ aridity <- raster("../Extra_SD_Data/Global Aridity - Annual/AI_annual/ai_yr/w001
 ext<-extent(c(112,154.5,-44.475,-9.975))
 aridity <- crop(aridity, ext)
 plot(aridity)
-writeRaster(aridity, "../Extra_SD_Data/Global Aridity - Annual/Aus_aridity.asc", crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0", overwrite=TRUE)
+writeRaster(aridity, "../Extra_SD_Data/Global Aridity - Annual/Aus_aridity.asc", crs = "+init=epsg:4326", overwrite=TRUE)
 
 ##Convert to equal areas
-aridity <- raster("../Extra_SD_Data/Global Aridity - Annual/Aus_aridity.asc", crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+aridity <- raster("../Extra_SD_Data/Global Aridity - Annual/Aus_aridity.asc", crs = "+init=epsg:4326")
 aridityAlbers <- projectRaster(aridity,km1,method='bilinear')
-writeRaster(aridityAlbers, "../Extra_SD_Data/Global Aridity - Annual/Aus_aridity_Equal_1km.asc", crs = "+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", overwrite=TRUE)
+writeRaster(aridityAlbers, "../Extra_SD_Data/Global Aridity - Annual/Aus_aridity_Equal_1km.tif", overwrite=TRUE)
 
 ###Problem starts here
-aridityAlbers<- raster("../Extra_SD_Data/Global Aridity - Annual/Aus_aridity_Equal_1km.asc", crs = "+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+aridityAlbers<- raster("../Extra_SD_Data/Global Aridity - Annual/Aus_aridity_Equal_1km.tif")
 aridity10 <- aggregate(aridityAlbers,10,'mean')
-ext1 <- extent(c(-1887423, 2122577, -4868165, -1008165))
-aridity101 <- crop(aridity10, ext1)
-plot(aridity101)
-writeRaster(aridity10, "Climate_data/Aus_aridity_Equal_10km.asc", crs = "+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", overwrite=TRUE)
+plot(aridity10)
+writeRaster(aridity10, "Climate_data/Aus_aridity_Equal_10km.tif", overwrite=TRUE)
 
 ### Loop for climate data
-layers <- list.files('Data/WorldClime/',full.names=T)
-layers2 <- c('bio1','bio2','bio12','bio15','bio20')
+layers <- list.files('../Extra_SD_Data/WorldClime/',full.names=T)
+layers2 <- c('bio1','bio2','bio12','bio15','bio18','bio19','bio20')
 for (i in 1:length(layers)){
   Bio_layer<- raster(layers[i])
   Bio_layer1 <- projectRaster(Bio_layer,km1,method='bilinear')
   Bio_layer2 <- aggregate(Bio_layer1,10,'mean')
   plot(Bio_layer2)
-  writeRaster(Bio_layer2, paste0("Climate_data/Aus_", layers2[i], "_Equal_10km.asc"), overwrite=TRUE)
+  writeRaster(Bio_layer2, paste0("Climate_data/Aus_", layers2[i], "_Equal_10km.tif"), overwrite=TRUE)
 } 
+
+bio12<-raster("Climate_data/Aus_bio12_Equal_10km.tif")
+bio18<-raster("Climate_data/Aus_bio18_Equal_10km.tif") 
+bio19<-raster("Climate_data/Aus_bio19_Equal_10km.tif")
+
+### calculate cory's bio20
+bio18_19 <- bio18/(bio18+bio19)
+writeRaster(bio18_19, "Climate_data/Aus_bio18_19_Equal_10km.tif", overwrite=TRUE)
+### similar variable using total precipitation
+bio18_20 <- bio18/bio12
+writeRaster(bio18_20, "Climate_data/Aus_bio18_20_Equal_10km.tif", overwrite=TRUE)
 
 
 ```
@@ -237,10 +247,9 @@ for (i in 1:length(layers)){
 # prep environmental layers (some of these are made below)
 # get climate
 cl.f=list.files('Climate_data/',full.names=T)
+cl.f <- cl.f[c(1:5,9,11:15)]
 cl=stack(cl.f)
-myprj = "+proj=aea +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-projection(cl)=myprj
-names(cl)=c('aridity','bio1','bio12','bio15','bio2','bio20','bedrockDepth','bulkDensity1_4','clay1_4','ph1_4','silt1_4')
+names(cl)=c('aridity','bio1','bio12','bio15','bio20','bio2','bedrockDepth','bulkDensity1_4','clay1_4','ph1_4','silt1_4')
 writeRaster(cl,file='Climate_data_final/Aus_bien_v1_env.grd',overwrite=T)
  
 
