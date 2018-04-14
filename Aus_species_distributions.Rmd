@@ -8,7 +8,8 @@ editor_options:
 ---
 
 ```{r run the test models, echo=TRUE, eval=FALSE}
-#rm(list= ls())
+
+rm(list= ls())
 #== 1. packages
 library(cmsdm)
 library(BIENWorkflow)
@@ -31,8 +32,8 @@ myCustomBackgroundDir=paste0(myInputDir,'/Pres_Family')
 myCustomBackgroundTable= paste0(myInputDir,'/Scripts/Aus_lookup_Table.csv')
 myEnvDir=paste0(myInputDir,'/Climate_data_final')
 # each of these should be stored as a single stack
-#myOtherEnvDir=NULL 
-myOtherEnvDir=paste0(myInputDir,'/Future_Env') 
+myOtherEnvDir=NULL 
+#myOtherEnvDir=paste0(myInputDir,'/Future_Env') 
 
 # for using offsets; not yet done in BIEN
 myRangePolyDir=NULL
