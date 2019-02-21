@@ -1,3 +1,0 @@
-"species","samplingSet","probSet","rateSet","skewSet","shiftSet","predictorsSet","regSet","priorSet","bgSet","algorithmSet","elevationSet","weightSet","rbV","rbD","rbP","modelNames"
-"Desmodium_gunnii","noBias",1e-06,0,1e-06,0,"all","all","none","all","maxnet","none","equalWeights",NA,NA,NA,"noBias_1e-06_0_1e-06_0_all_all_none_all_maxnet_none_equalWeights"
-"Desmodium_gunnii","targetBG",1e-06,0,1e-06,0,"all","all","none","all","maxnet","none","equalWeights",NA,NA,NA,"targetBG_1e-06_0_1e-06_0_all_all_none_all_maxnet_none_equalWeights"
